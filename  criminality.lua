@@ -1,5 +1,3 @@
-
-
 if not game:IsLoaded() then
 	repeat
 		game.Loaded:Wait()
