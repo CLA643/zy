@@ -1,3 +1,18 @@
+-- // 尝试屏蔽 newindexInstance 检测
+do
+    local mt = getrawmetatable(game)
+    local oldIndex = mt.__index
+    setreadonly(mt, false)
+    mt.__index = newcclosure(function(self, key)
+        -- 如果反作弊试图读取这个检测标志，直接骗它说没有
+        if key == "newindexInstance" or key == "NewIndexInstance" then
+            return nil
+        end
+        return oldIndex(self, key)
+    end)
+    setreadonly(mt, true)
+end
+
 -- // ===== 补丁0：Bypass indexInstance detector =====
 do
     -- 1. 篡改 indexInstance 检测表（基于以往反作弊特征）
