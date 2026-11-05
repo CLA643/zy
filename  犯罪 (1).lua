@@ -1,3 +1,53 @@
+-- // ===== 补丁0：Bypass indexInstance detector =====
+do
+    -- 1. 篡改 indexInstance 检测表（基于以往反作弊特征）
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            local success, val = pcall(rawget, obj, "indexInstance")
+            if success and val then
+                -- 如果这是个检测表，直接把里面的逻辑废掉
+                pcall(function()
+                    if type(val) == "table" and val[1] == "kick" then
+                        val[2] = function() return false end
+                    elseif type(val) == "function" then
+                        pcall(hookfunction, val, function() return false end)
+                    end
+                end)
+            end
+        end
+    end
+
+    -- 2. 拦截 Namecall 和 Index，防止反作弊看到非法的实例访问
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    local oldIndex = mt.__index
+    
+    setreadonly(mt, false)
+    
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        -- 拦截可能存在扫描的调用
+        if method == "Kick" or method == "FindFirstChild" or method == "GetChildren" then
+            -- 如果反作弊试图通过 Stack 查，尝试欺骗它
+            local trace = debug.traceback()
+            if trace:find("AntiCheat") or trace:find("Detector") or trace:find("Hyperion") then
+                return false or {}
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+
+    mt.__index = newcclosure(function(self, key)
+        -- 如果有反作弊读取特定关键字，直接拦截返回 nil
+        if key == "indexInstance" then
+            return nil 
+        end
+        return oldIndex(self, key)
+    end)
+    
+    setreadonly(mt, true)
+end
+
 if not game:IsLoaded() then
 	repeat
 		game.Loaded:Wait()
