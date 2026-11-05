@@ -1,3 +1,97 @@
+-- // ==========================================
+-- // 终极防检测补丁 (放在文件第一行)
+-- // ==========================================
+do
+    -- 1. 尝试拦截 Kick 函数，从根本上阻止被踢
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        -- 拦截踢出函数
+        if method == "Kick" then
+            return nil
+        end
+        return oldNamecall(self, ...)
+    end))
+
+    -- 2. 拦截针对 newindexInstance 的读取检测
+    local mt = getrawmetatable(game)
+    local oldIndex = mt.__index
+    setreadonly(mt, false)
+    mt.__index = newcclosure(function(self, key)
+        -- 如果反作弊试图读取这个标志来踢你，直接返回 nil 骗过它
+        if key == "newindexInstance" or key == "NewIndexInstance" then
+            return nil
+        end
+        return oldIndex(self, key)
+    end)
+    setreadonly(mt, true)
+
+    -- 3. 深度禁用 getgc 中可能存在的 indexInstance 检测表
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            local success, val = pcall(rawget, obj, "indexInstance")
+            if success and val then
+                pcall(function()
+                    if type(val) == "table" and val[1] == "kick" then
+                        val[2] = function() return false end -- 将检测回调替换为空函数
+                    end
+                end)
+            end
+        end
+    end
+end
+-- // ==========================================
+
+-- // ===== 补丁0：Bypass indexInstance detector =====
+do
+    -- 1. 篡改 indexInstance 检测表（基于以往反作弊特征）
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            local success, val = pcall(rawget, obj, "indexInstance")
+            if success and val then
+                -- 如果这是个检测表，直接把里面的逻辑废掉
+                pcall(function()
+                    if type(val) == "table" and val[1] == "kick" then
+                        val[2] = function() return false end
+                    elseif type(val) == "function" then
+                        pcall(hookfunction, val, function() return false end)
+                    end
+                end)
+            end
+        end
+    end
+
+    -- 2. 拦截 Namecall 和 Index，防止反作弊看到非法的实例访问
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    local oldIndex = mt.__index
+    
+    setreadonly(mt, false)
+    
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        -- 拦截可能存在扫描的调用
+        if method == "Kick" or method == "FindFirstChild" or method == "GetChildren" then
+            -- 如果反作弊试图通过 Stack 查，尝试欺骗它
+            local trace = debug.traceback()
+            if trace:find("AntiCheat") or trace:find("Detector") or trace:find("Hyperion") then
+                return false or {}
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+
+    mt.__index = newcclosure(function(self, key)
+        -- 如果有反作弊读取特定关键字，直接拦截返回 nil
+        if key == "indexInstance" then
+            return nil 
+        end
+        return oldIndex(self, key)
+    end)
+    
+    setreadonly(mt, true)
+end
+
 -- // ===== 补丁1：上报通道拦截 + 远程节流 =====
 do
     local throttles = {}
@@ -294,12 +388,12 @@ end
 				--rconsoleprint("Loaded Part 2 \n")
 			end
 		end
+		
+	-- if (not passed1) and (not passed2) then
+	--  LocalPlayer:Kick("YOUR EXECUTER IS ASS")
+	-- end
 
-		if (not passed1) and (not passed2) then
-			LocalPlayer:Kick("YOUR EXECUTER IS ASS")
-		end
-
-	end
+   end
 
 	-- // anti gameplay paused
 	do
