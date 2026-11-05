@@ -1,46 +1,32 @@
--- // ==========================================
--- // 终极防检测补丁 (放在文件第一行)
--- // ==========================================
+-- // ===== 仅拦截读取，不防踢 =====
 do
-    -- 1. 尝试拦截 Kick 函数，从根本上阻止被踢
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        -- 拦截踢出函数
-        if method == "Kick" then
-            return nil
-        end
-        return oldNamecall(self, ...)
-    end))
-
-    -- 2. 拦截针对 newindexInstance 的读取检测
     local mt = getrawmetatable(game)
     local oldIndex = mt.__index
+    local oldNewIndex = mt.__newindex
+    
     setreadonly(mt, false)
+    
+    -- 1. 欺骗读取
     mt.__index = newcclosure(function(self, key)
-        -- 如果反作弊试图读取这个标志来踢你，直接返回 nil 骗过它
-        if key == "newindexInstance" or key == "NewIndexInstance" then
+        if key == "indexInstance" or key == "newindexInstance" or key == "IndexInstance" or key == "NewIndexInstance" then
             return nil
         end
         return oldIndex(self, key)
     end)
-    setreadonly(mt, true)
 
-    -- 3. 深度禁用 getgc 中可能存在的 indexInstance 检测表
-    for _, obj in pairs(getgc(true)) do
-        if type(obj) == "table" then
-            local success, val = pcall(rawget, obj, "indexInstance")
-            if success and val then
-                pcall(function()
-                    if type(val) == "table" and val[1] == "kick" then
-                        val[2] = function() return false end -- 将检测回调替换为空函数
-                    end
-                end)
-            end
+    -- 2. 欺骗写入
+    mt.__newindex = newcclosure(function(self, key, value)
+        if key == "indexInstance" or key == "newindexInstance" or key == "IndexInstance" or key == "NewIndexInstance" then
+            return nil
         end
-    end
+        return oldNewIndex(self, key, value)
+    end)
+    
+    setreadonly(mt, true)
 end
--- // ==========================================
+-- ==========================================
+
+-- 下面是你原来的代码（if not game:IsLoaded() 等）
 
 -- // ===== 补丁0：Bypass indexInstance detector =====
 do
