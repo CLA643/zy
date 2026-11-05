@@ -1,139 +1,4 @@
--- // ===== 使用 MT-Api-v2 进行高级绕过 =====
--- 1. 加载 MT-Api-v2
-if not getgenv().MTAPIMutex then
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/KikoTheDon/MT-Api-v2/main/__source/mt-api%20v2.lua", true))()
-end
 
--- 2. 锁定关键属性，防止反作弊检测到你修改了它们
--- 将 WalkSpeed 永久锁定为 16 (正常值)，无论你怎么改，反作弊看到的都是 16
-game:AddGlobalSetHook("WalkSpeed", function(self, value)
-    if value ~= 16 then return 16 end
-end)
-
--- 同样锁定 JumpPower
-game:AddGlobalSetHook("JumpPower", function(self, value)
-    if value ~= 50 then return 50 end
-end)
-
--- 3. 拦截关键的踢人函数 (替换掉你之前失败的 Hook 方式)
--- 如果反作弊试图调用 Kick，MT-Api 会拦截它
-game:AddGlobalCallHook("Kick", function(self, __namecall, ...)
-    return function() end -- 什么都不做，阻止踢出
-end)
--- // ==========================================
-
--- // ===== 仅拦截读取，不防踢 =====
-do
-    local mt = getrawmetatable(game)
-    local oldIndex = mt.__index
-    local oldNewIndex = mt.__newindex
-    
-    setreadonly(mt, false)
-    
-    -- 1. 欺骗读取
-    mt.__index = newcclosure(function(self, key)
-        if key == "indexInstance" or key == "newindexInstance" or key == "IndexInstance" or key == "NewIndexInstance" then
-            return nil
-        end
-        return oldIndex(self, key)
-    end)
-
-    -- 2. 欺骗写入
-    mt.__newindex = newcclosure(function(self, key, value)
-        if key == "indexInstance" or key == "newindexInstance" or key == "IndexInstance" or key == "NewIndexInstance" then
-            return nil
-        end
-        return oldNewIndex(self, key, value)
-    end)
-    
-    setreadonly(mt, true)
-end
--- ==========================================
-
--- 下面是你原来的代码（if not game:IsLoaded() 等）
-
--- // ===== 补丁0：Bypass indexInstance detector =====
-do
-    -- 1. 篡改 indexInstance 检测表（基于以往反作弊特征）
-    for _, obj in pairs(getgc(true)) do
-        if type(obj) == "table" then
-            local success, val = pcall(rawget, obj, "indexInstance")
-            if success and val then
-                -- 如果这是个检测表，直接把里面的逻辑废掉
-                pcall(function()
-                    if type(val) == "table" and val[1] == "kick" then
-                        val[2] = function() return false end
-                    elseif type(val) == "function" then
-                        pcall(hookfunction, val, function() return false end)
-                    end
-                end)
-            end
-        end
-    end
-
-    -- 2. 拦截 Namecall 和 Index，防止反作弊看到非法的实例访问
-    local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
-    local oldIndex = mt.__index
-    
-    setreadonly(mt, false)
-    
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        -- 拦截可能存在扫描的调用
-        if method == "Kick" or method == "FindFirstChild" or method == "GetChildren" then
-            -- 如果反作弊试图通过 Stack 查，尝试欺骗它
-            local trace = debug.traceback()
-            if trace:find("AntiCheat") or trace:find("Detector") or trace:find("Hyperion") then
-                return false or {}
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
-
-    mt.__index = newcclosure(function(self, key)
-        -- 如果有反作弊读取特定关键字，直接拦截返回 nil
-        if key == "indexInstance" then
-            return nil 
-        end
-        return oldIndex(self, key)
-    end)
-    
-    setreadonly(mt, true)
-end
-
--- // ===== 补丁1：上报通道拦截 + 远程节流 =====
-do
-    local throttles = {}
-    function throttleRemote(remote, minInterval)
-        if throttles[remote] then return end
-        local old = remote.FireServer
-        local last = 0
-        remote.FireServer = newcclosure(function(self, ...)
-            local t = os.clock()
-            if t - last < minInterval then return end
-            last = t
-            return old(self, ...)
-        end)
-        throttles[remote] = true
-    end
-
-    task.spawn(function()
-        for _, remote in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-            if remote:IsA("RemoteEvent") and remote.Name:lower():find("report") then
-                local old = remote.FireServer
-                remote.FireServer = newcclosure(function(self, payload)
-                    if type(payload) == "table" and (payload.check or payload.severity) then
-                        payload.severity = 0
-                        payload.evidence = {}
-                        payload._audited = true
-                    end
-                    return old(self, payload)
-                end)
-            end
-        end
-    end)
-end
 
 if not game:IsLoaded() then
 	repeat
@@ -10619,10 +10484,10 @@ end
 					FakeHRPCFrame = CFrame.new(NewFlashpartPosition + flashOffsetHRP, target_position)
 				end
 
-				debug.setstack(3, 45, FakeCameraCFrame)
-				debug.setstack(3, 54, target_position)
-				debug.setstack(3, 52, FakeHRPCFrame)
-				debug.setstack(3, 51, NewFlashpartPosition)
+			--	debug.setstack(3, 45, FakeCameraCFrame)
+			--	debug.setstack(3, 54, target_position)
+			--	debug.setstack(3, 52, FakeHRPCFrame)
+			--	debug.setstack(3, 51, NewFlashpartPosition)
 
 				local Origin = Args[1].Position
 				local CorrectedPosition, Direction
