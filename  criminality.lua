@@ -1,3 +1,27 @@
+-- // ===== 使用 MT-Api-v2 进行高级绕过 =====
+-- 1. 加载 MT-Api-v2
+if not getgenv().MTAPIMutex then
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/KikoTheDon/MT-Api-v2/main/__source/mt-api%20v2.lua", true))()
+end
+
+-- 2. 锁定关键属性，防止反作弊检测到你修改了它们
+-- 将 WalkSpeed 永久锁定为 16 (正常值)，无论你怎么改，反作弊看到的都是 16
+game:AddGlobalSetHook("WalkSpeed", function(self, value)
+    if value ~= 16 then return 16 end
+end)
+
+-- 同样锁定 JumpPower
+game:AddGlobalSetHook("JumpPower", function(self, value)
+    if value ~= 50 then return 50 end
+end)
+
+-- 3. 拦截关键的踢人函数 (替换掉你之前失败的 Hook 方式)
+-- 如果反作弊试图调用 Kick，MT-Api 会拦截它
+game:AddGlobalCallHook("Kick", function(self, __namecall, ...)
+    return function() end -- 什么都不做，阻止踢出
+end)
+-- // ==========================================
+
 -- // ===== 仅拦截读取，不防踢 =====
 do
     local mt = getrawmetatable(game)
